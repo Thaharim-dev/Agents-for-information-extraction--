@@ -3,6 +3,7 @@ import re
 import uuid
 import json
 import datetime
+import gc
 import shutil
 import networkx as nx
 from typing import List, Dict, Any
