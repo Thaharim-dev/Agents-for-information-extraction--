@@ -19,51 +19,102 @@ class VRDUAgent:
     def __init__(self):
         self.name = "VRDU_Pro_Agent_Integrated"
         self.version = "1.2.0"
-
-    def process_document(self, pdf_path: str, target_fields: List[str]) -> Dict[str, Any]:
-        """The 11-Stage Pipeline as defined in our architecture."""
-        start_time = datetime.datetime.now()
         
-        # STAGE 1: Preprocess
-        images = convert_from_path(pdf_path, dpi=300)
-        full_results = []
+def process_document(self, pdf_path: str, target_fields: List[str]) -> Dict[str, Any]:
+    """ Memory-Optimised Pipeline for Render's 512MB RAM."""
+    start_time = datetime.datetime.now()
+    full_results = []
 
-        for i, img in enumerate(images):
-            page_num = i + 1
-            # Image Normalization
-            img = ImageOps.grayscale(img)
-            img = ImageOps.autocontrast(img)
+    # OPTIMIZATION 1: Lower DPI to 120. 
+    # Use 'paths_only' if you have many pages, but for now we'll just use lower DPI.
+    images = convert_from_path(pdf_path, dpi=120)
 
-            # STAGE 2 & 3: Extraction (OCR + Geometry)
-            raw_data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
-            elements = self._clean_ocr_data(raw_data, page_num)
+    for i, img in enumerate(images):
+        page_num = i + 1
+        
+        # Image Normalization - Gray uses 1/3 the memory of RGB
+        img = ImageOps.grayscale(img)
+        img = ImageOps.autocontrast(img)
 
-            # STAGE 4: Reading Order (Topological Sort)
-            sequence = self._determine_reading_order(elements)
-            elements_map = {el['id']: el for el in elements}
-            ordered_elements = [elements_map[eid] for eid in sequence]
+        # STAGE 2 & 3: Extraction (OCR + Geometry)
+        raw_data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
+        elements = self._clean_ocr_data(raw_data, page_num)
 
-            # STAGE 8 & 10: Advanced Radial Anchor Search
-            fields = self._extract_anchored_fields(ordered_elements, target_fields)
+        # STAGE 4: Reading Order
+        sequence = self._determine_reading_order(elements)
+        elements_map = {el['id']: el for el in elements}
+        ordered_elements = [elements_map[eid] for eid in sequence]
+
+        # STAGE 8-10: Search
+        fields = self._extract_anchored_fields(ordered_elements, target_fields)
+        validated_fields = self._validate_and_clean(fields)
+
+        # STAGE 9: Table Extraction
+        table = self._extract_table_grid(ordered_elements)
+
+        full_results.append({
+            "page": page_num,
+            "fields": validated_fields,
+            "table": table,
+            "raw_text": " ".join([el['text'] for el in ordered_elements])
+        })
+
+        # OPTIMIZATION 2: The "Trash Collector"
+        # We manually close the image and clear memory for the next page
+        img.close()
+        del img
+        gc.collect() 
+
+    duration = (datetime.datetime.now() - start_time).total_seconds()
+    return {
+        "metadata": {"time_sec": duration, "pages": len(images), "agent": self.name},
+        "data": full_results
+    }
+
+# def process_document(self, pdf_path: str, target_fields: List[str]) -> Dict[str, Any]:
+#         """The 11-Stage Pipeline as defined in our architecture."""
+#         start_time = datetime.datetime.now()
+        
+#         # STAGE 1: Preprocess
+#         images = convert_from_path(pdf_path, dpi=300)
+#         full_results = []
+
+#         for i, img in enumerate(images):
+#             page_num = i + 1
+#             # Image Normalization
+#             img = ImageOps.grayscale(img)
+#             img = ImageOps.autocontrast(img)
+
+#             # STAGE 2 & 3: Extraction (OCR + Geometry)
+#             raw_data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
+#             elements = self._clean_ocr_data(raw_data, page_num)
+
+#             # STAGE 4: Reading Order (Topological Sort)
+#             sequence = self._determine_reading_order(elements)
+#             elements_map = {el['id']: el for el in elements}
+#             ordered_elements = [elements_map[eid] for eid in sequence]
+
+#             # STAGE 8 & 10: Advanced Radial Anchor Search
+#             fields = self._extract_anchored_fields(ordered_elements, target_fields)
             
-            # STAGE 11: Validation & Cleaning
-            validated_fields = self._validate_and_clean(fields)
+#             # STAGE 11: Validation & Cleaning
+#             validated_fields = self._validate_and_clean(fields)
 
-            # STAGE 9: Table/Grid Extraction
-            table = self._extract_table_grid(ordered_elements)
+#             # STAGE 9: Table/Grid Extraction
+#             table = self._extract_table_grid(ordered_elements)
 
-            full_results.append({
-                "page": page_num,
-                "fields": validated_fields,
-                "table": table,
-                "raw_text": " ".join([el['text'] for el in ordered_elements])
-            })
+#             full_results.append({
+#                 "page": page_num,
+#                 "fields": validated_fields,
+#                 "table": table,
+#                 "raw_text": " ".join([el['text'] for el in ordered_elements])
+#             })
 
-        duration = (datetime.datetime.now() - start_time).total_seconds()
-        return {
-            "metadata": {"time_sec": duration, "pages": len(images), "agent": self.name},
-            "data": full_results
-        }
+#         duration = (datetime.datetime.now() - start_time).total_seconds()
+#         return {
+#             "metadata": {"time_sec": duration, "pages": len(images), "agent": self.name},
+#             "data": full_results
+#         }
 
     def _clean_ocr_data(self, data, page_num):
         elements = []
