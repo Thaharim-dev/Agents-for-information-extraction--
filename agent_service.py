@@ -20,8 +20,8 @@ class VRDUAgent:
     def __init__(self):
         self.name = "VRDU_Pro_Agent_Integrated"
         self.version = "1.2.0"
-        
-def process_document(self, pdf_path: str, target_fields: List[str]) -> Dict[str, Any]:
+    
+    def process_document(self, pdf_path: str, target_fields: List[str]) -> Dict[str, Any]:
     """ Memory-Optimised Pipeline for Render's 512MB RAM."""
     start_time = datetime.datetime.now()
     full_results = []
