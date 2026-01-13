@@ -4,6 +4,38 @@ Specialized agents for visual understanding
 # 📄 VRDU Pro Agent: AI-Powered Document Extraction
 An end-to-end Visual Document Understanding (VRDU) agent built with FastAPI, Tesseract OCR, and NetworkX. This agent doesn't just "read" text; it understands the spatial layout of documents to extract structured data from invoices, forms, and tables with high precision.
 
+
+# Pipeline
+The agent follows a multi-stage Visual Document Understanding (VRDU) pipeline to ensure high accuracy even with complex layouts:
+
+**1. Vision & Pre-processing**
+
+***PDF to Image:*** Converts document pages into high-resolution images using pdf2image.
+
+***Memory Optimization:*** Downscales to 120 DPI and converts to Grayscale to stay within a 512MB RAM footprint.
+
+***Normalization:*** Applies Autocontrast to improve OCR legibility on faded documents.
+
+**2. Spatial Intelligence (OCR & Geometry)**
+
+***Geometry Extraction:*** Uses Tesseract to get (x, y, w, h) coordinates for every word.
+
+***Graph Reasoning:*** Builds a Directed Acyclic Graph (DAG) where nodes are words and edges represent "above/below" or "left/right" relationships.
+
+***Topological Sort:*** Determines the Human Reading Order, preventing the "column-mixing" error common in standard PDF readers.
+
+**3. Data Extraction & Heuristics**
+
+***Radial Anchor Search:*** Locates a "Target Label" (e.g., Total) and searches in a 2D radius to find the corresponding value.
+
+***Grid Detection:*** Identifies rows and columns by analyzing the Y-axis alignment of text elements to reconstruct tables.
+
+**4. Validation & Delivery**
+
+***Regex Filtering:*** Uses pattern matching to ensure "Dates" look like dates and "Totals" look like currency.
+
+***Asynchronous Polling:*** Jobs are processed in a background thread; results are cached and retrieved via a unique job_id.
+
 # 🚀 Key Features
 Sequential Page Processing: Optimized for low-memory environments (runs on 512MB RAM).
 
